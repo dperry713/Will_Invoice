@@ -10,10 +10,10 @@ app.use(cors());
 app.use(express.json());
 
 // SMTP Configuration from environment variables
-const SMTP_HOST = process.env.SMTP_HOST || "smtp.gmail.com";
+const SMTP_HOST = process.env.SMTP_HOST || "smtp.maileroo.com";
 const SMTP_PORT = process.env.SMTP_PORT || 587;
-const SMTP_USER = process.env.SMTP_USER || "your_email@gmail.com"; // Replace with your SMTP email
-const SMTP_PASS = process.env.SMTP_PASS || "your_app_password"; // Replace with your SMTP password or app-specific password
+const SMTP_USER = process.env.SMTP_USER; // your Maileroo username
+const SMTP_PASS = process.env.SMTP_PASS; // your Maileroo password
 const FROM_EMAIL = process.env.FROM_EMAIL || "your_email@gmail.com"; // Replace with your sender email
 const FROM_NAME = process.env.FROM_NAME || "Construction Project Tracker";
 
@@ -28,7 +28,7 @@ console.log("FROM_NAME:", FROM_NAME);
 const transporter = nodemailer.createTransport({
   host: SMTP_HOST,
   port: SMTP_PORT,
-  secure: SMTP_PORT === 465, // Use true for port 465 (SSL), false for 587 (TLS)
+  secure: false, // Use false for port 587 (TLS)
   auth: {
     user: SMTP_USER,
     pass: SMTP_PASS,
