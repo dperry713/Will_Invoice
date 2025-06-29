@@ -95,6 +95,11 @@ app.post("/send-email", async (req, res) => {
 });
 
 // Start server
+app.get("/", (req, res) => {
+  res.send("Server is running!");
+});
+
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
