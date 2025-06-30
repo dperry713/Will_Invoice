@@ -1,5 +1,5 @@
 const express = require("express");
-const nodemailer = require("nodemailer");
+const axios = require("axios");
 const cors = require("cors");
 require("dotenv").config();
 
@@ -23,17 +23,6 @@ console.log("SMTP_PORT:", SMTP_PORT);
 console.log("SMTP_USER:", SMTP_USER);
 console.log("FROM_EMAIL:", FROM_EMAIL);
 console.log("FROM_NAME:", FROM_NAME);
-
-// Create Nodemailer transporter
-const transporter = nodemailer.createTransport({
-  host: SMTP_HOST,
-  port: SMTP_PORT,
-  secure: false, // Use false for port 587 (TLS)
-  auth: {
-    user: SMTP_USER,
-    pass: SMTP_PASS,
-  },
-});
 
 // Endpoint to send email with invoice PDF
 app.post("/send-email", async (req, res) => {
@@ -59,38 +48,50 @@ app.post("/send-email", async (req, res) => {
     return res.status(400).json({ error: "Invalid email address" });
   }
 
-  const mailOptions = {
-    from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
-    to: recipientEmail,
-    subject: `Invoice #${invoiceId} for ${projectName}`,
-    text: `Please find attached Invoice #${invoiceId} for ${projectName}.\n\nThank you for your business!\n\nTo opt out of future emails, reply with "Unsubscribe".`,
-    attachments: [
-      {
-        filename: `Invoice_${projectName}_${new Date()
-          .toLocaleDateString()
-          .replace(/\//g, "-")}.pdf`,
-        content: Buffer.from(pdfBase64, "base64"),
-        contentType: "application/pdf",
-      },
-    ],
-  };
-
-  // Debug: Log mail options (excluding attachment content)
-  console.log("Mail options:", {
-    from: mailOptions.from,
-    to: mailOptions.to,
-    subject: mailOptions.subject,
-    attachmentFilename: mailOptions.attachments[0].filename,
-    attachmentSize: mailOptions.attachments[0].content.length,
+  // Prepare form data for Maileroo API
+  let data = new FormData();
+  data.append("from", `"${FROM_NAME}" <${FROM_EMAIL}>`);
+  data.append("to", recipientEmail);
+  data.append("subject", `Invoice #${invoiceId} for ${projectName}`);
+  data.append(
+    "plain",
+    `Please find attached Invoice #${invoiceId} for ${projectName}.\n\nThank you for your business!\n\nTo opt out of future emails, reply with "Unsubscribe".`
+  );
+  data.append(
+    "html",
+    `<p>Please find attached Invoice #${invoiceId} for ${projectName}.</p><p>Thank you for your business!</p><p>To opt out of future emails, reply with "Unsubscribe".</p>`
+  );
+  data.append("attachment", Buffer.from(pdfBase64, "base64"), {
+    filename: `Invoice_${projectName}_${new Date()
+      .toLocaleDateString()
+      .replace(/\//g, "-")}.pdf`,
+    contentType: "application/pdf",
   });
 
+  const config = {
+    method: "post",
+    url: "https://smtp.maileroo.com/send",
+    headers: {
+      "X-API-Key": process.env.MAILEROO_API_KEY, // Set this in your environment variables!
+      ...data.getHeaders(),
+    },
+    data: data,
+  };
+
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully:", info.messageId);
-    res.json({ message: "Email sent successfully", messageId: info.messageId });
+    const response = await axios(config);
+    console.log("Email sent successfully:", response.data);
+    res.json({ message: "Email sent successfully", data: response.data });
   } catch (error) {
-    console.error("Error sending email:", error); // log full error object
-    res.status(500).json({ error: "Failed to send email: " + error.message });
+    console.error(
+      "Error sending email:",
+      error.response ? error.response.data : error.message
+    );
+    res.status(500).json({
+      error:
+        "Failed to send email: " +
+        (error.response ? JSON.stringify(error.response.data) : error.message),
+    });
   }
 });
 
