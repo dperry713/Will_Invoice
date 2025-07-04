@@ -1,6 +1,6 @@
 const express = require("express");
-const axios = require("axios");
 const cors = require("cors");
+const nodemailer = require("nodemailer");
 require("dotenv").config();
 
 const app = express();
@@ -9,12 +9,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// SMTP Configuration from environment variables
-const SMTP_HOST = process.env.SMTP_HOST || "smtp.maileroo.com";
-const SMTP_PORT = process.env.SMTP_PORT || 587;
-const SMTP_USER = process.env.SMTP_USER; // your Maileroo username
-const SMTP_PASS = process.env.SMTP_PASS; // your Maileroo password
-const FROM_EMAIL = process.env.FROM_EMAIL || "your_email@gmail.com"; // Replace with your sender email
+// SMTP Configuration for MailerSend
+const SMTP_HOST = "smtp.mailersend.net";
+const SMTP_PORT = 587; // or 2525
+const SMTP_USER = "MS_jWNVYz@test-xkjn41m71e64z781.mlsender.net";
+const SMTP_PASS = "mssp.7i1XusC.7dnvo4dydjn45r86.G8pL5kr";
+const FROM_EMAIL = process.env.FROM_EMAIL || "your_email@gmail.com";
 const FROM_NAME = process.env.FROM_NAME || "Construction Project Tracker";
 
 // Debug: Log SMTP configuration (do not log passwords in production)
@@ -23,6 +23,17 @@ console.log("SMTP_PORT:", SMTP_PORT);
 console.log("SMTP_USER:", SMTP_USER);
 console.log("FROM_EMAIL:", FROM_EMAIL);
 console.log("FROM_NAME:", FROM_NAME);
+
+// Nodemailer transporter
+const transporter = nodemailer.createTransport({
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  secure: false, // true for 465, false for other ports
+  auth: {
+    user: SMTP_USER,
+    pass: SMTP_PASS,
+  },
+});
 
 // Endpoint to send email with invoice PDF
 app.post("/send-email", async (req, res) => {
@@ -48,49 +59,32 @@ app.post("/send-email", async (req, res) => {
     return res.status(400).json({ error: "Invalid email address" });
   }
 
-  // Prepare form data for Maileroo API
-  let data = new FormData();
-  data.append("from", `"${FROM_NAME}" <${FROM_EMAIL}>`);
-  data.append("to", recipientEmail);
-  data.append("subject", `Invoice #${invoiceId} for ${projectName}`);
-  data.append(
-    "plain",
-    `Please find attached Invoice #${invoiceId} for ${projectName}.\n\nThank you for your business!\n\nTo opt out of future emails, reply with "Unsubscribe".`
-  );
-  data.append(
-    "html",
-    `<p>Please find attached Invoice #${invoiceId} for ${projectName}.</p><p>Thank you for your business!</p><p>To opt out of future emails, reply with "Unsubscribe".</p>`
-  );
-  data.append("attachment", Buffer.from(pdfBase64, "base64"), {
-    filename: `Invoice_${projectName}_${new Date()
-      .toLocaleDateString()
-      .replace(/\//g, "-")}.pdf`,
-    contentType: "application/pdf",
-  });
-
-  const config = {
-    method: "post",
-    url: "https://smtp.maileroo.com/send",
-    headers: {
-      "X-API-Key": process.env.MAILEROO_API_KEY, // Set this in your environment variables!
-      ...data.getHeaders(),
-    },
-    data: data,
+  // Prepare email options
+  const mailOptions = {
+    from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+    to: recipientEmail,
+    subject: `Invoice #${invoiceId} for ${projectName}`,
+    text: `Please find attached Invoice #${invoiceId} for ${projectName}.\n\nThank you for your business!\n\nTo opt out of future emails, reply with "Unsubscribe".`,
+    html: `<p>Please find attached Invoice #${invoiceId} for ${projectName}.</p><p>Thank you for your business!</p><p>To opt out of future emails, reply with "Unsubscribe".</p>`,
+    attachments: [
+      {
+        filename: `Invoice_${projectName}_${new Date()
+          .toLocaleDateString()
+          .replace(/\//g, "-")}.pdf`,
+        content: Buffer.from(pdfBase64, "base64"),
+        contentType: "application/pdf",
+      },
+    ],
   };
 
   try {
-    const response = await axios(config);
-    console.log("Email sent successfully:", response.data);
-    res.json({ message: "Email sent successfully", data: response.data });
+    const info = await transporter.sendMail(mailOptions);
+    console.log("Email sent successfully:", info.messageId);
+    res.json({ message: "Email sent successfully", data: info });
   } catch (error) {
-    console.error(
-      "Error sending email:",
-      error.response ? error.response.data : error.message
-    );
+    console.error("Error sending email:", error);
     res.status(500).json({
-      error:
-        "Failed to send email: " +
-        (error.response ? JSON.stringify(error.response.data) : error.message),
+      error: "Failed to send email: " + error.message,
     });
   }
 });
