@@ -40,6 +40,12 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// MailerSend API integration
+const { MailerSend, Recipient, EmailParams } = require("mailersend");
+const mailersend = new MailerSend({
+  apiKey: process.env.MAILERSEND_API_TOKEN,
+});
+
 // Example endpoint to demonstrate API token usage
 app.get("/api-token", (req, res) => {
   if (!MAILERSEND_API_TOKEN) {
@@ -100,6 +106,48 @@ app.post("/send-email", async (req, res) => {
     res.status(500).json({
       error: "Failed to send email: " + error.message,
     });
+  }
+});
+
+// Endpoint to send email using MailerSend API
+app.post("/send-api-email", async (req, res) => {
+  const { invoiceId, projectName, recipientEmail, pdfBase64 } = req.body;
+
+  if (!invoiceId || !projectName || !recipientEmail || !pdfBase64) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+    return res.status(400).json({ error: "Invalid email address" });
+  }
+
+  const recipients = [new Recipient(recipientEmail, recipientEmail)];
+  const emailParams = new EmailParams()
+    .setFrom(process.env.FROM_EMAIL)
+    .setFromName(process.env.FROM_NAME)
+    .setRecipients(recipients)
+    .setSubject(`Invoice #${invoiceId} for ${projectName}`)
+    .setHtml(
+      `<p>Please find attached Invoice #${invoiceId} for ${projectName}.</p><p>Thank you for your business!</p><p>To opt out of future emails, reply with "Unsubscribe".</p>`
+    )
+    .setText(
+      `Please find attached Invoice #${invoiceId} for ${projectName}.\n\nThank you for your business!\n\nTo opt out of future emails, reply with "Unsubscribe".`
+    )
+    .setAttachments([
+      {
+        content: pdfBase64,
+        filename: `Invoice_${projectName}_${new Date()
+          .toLocaleDateString()
+          .replace(/\//g, "-")}.pdf`,
+        type: "application/pdf",
+      },
+    ]);
+
+  try {
+    const response = await mailersend.email.send(emailParams);
+    res.json({ message: "Email sent via MailerSend API", data: response.body });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to send email: " + error.message });
   }
 });
 
