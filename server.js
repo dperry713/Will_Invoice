@@ -33,7 +33,7 @@ console.log(
 const transporter = nodemailer.createTransport({
   host: SMTP_HOST,
   port: SMTP_PORT,
-  secure: false, // true for 465, false for other ports
+  secure: false, // for 587/2525
   auth: {
     user: SMTP_USER,
     pass: SMTP_PASS,
