@@ -10,19 +10,24 @@ app.use(cors());
 app.use(express.json());
 
 // SMTP Configuration for MailerSend
-const SMTP_HOST = "smtp.mailersend.net";
-const SMTP_PORT = 587; // or 2525
-const SMTP_USER = "MS_jWNVYz@test-xkjn41m71e64z781.mlsender.net";
-const SMTP_PASS = "mssp.7i1XusC.7dnvo4dydjn45r86.G8pL5kr";
+const SMTP_HOST = process.env.SMTP_HOST || "smtp.mailersend.net";
+const SMTP_PORT = process.env.SMTP_PORT || 587;
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASS = process.env.SMTP_PASS;
 const FROM_EMAIL = process.env.FROM_EMAIL || "your_email@gmail.com";
 const FROM_NAME = process.env.FROM_NAME || "Construction Project Tracker";
+const MAILERSEND_API_TOKEN = process.env.MAILERSEND_API_TOKEN;
 
-// Debug: Log SMTP configuration (do not log passwords in production)
+// Debug: Log SMTP configuration (do not log passwords or tokens in production)
 console.log("SMTP_HOST:", SMTP_HOST);
 console.log("SMTP_PORT:", SMTP_PORT);
 console.log("SMTP_USER:", SMTP_USER);
 console.log("FROM_EMAIL:", FROM_EMAIL);
 console.log("FROM_NAME:", FROM_NAME);
+console.log(
+  "MAILERSEND_API_TOKEN:",
+  MAILERSEND_API_TOKEN ? "Loaded" : "Not set"
+);
 
 // Nodemailer transporter
 const transporter = nodemailer.createTransport({
@@ -33,6 +38,15 @@ const transporter = nodemailer.createTransport({
     user: SMTP_USER,
     pass: SMTP_PASS,
   },
+});
+
+// Example endpoint to demonstrate API token usage
+app.get("/api-token", (req, res) => {
+  if (!MAILERSEND_API_TOKEN) {
+    return res.status(500).json({ error: "MailerSend API token not set" });
+  }
+  // For security, do not send the token itself. Just confirm it's loaded.
+  res.json({ message: "MailerSend API token is loaded and ready to use." });
 });
 
 // Endpoint to send email with invoice PDF
