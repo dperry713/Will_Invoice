@@ -3,10 +3,12 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "compression": "^1.8.0",
     "cors": "^2.8.5",
-    "dotenv": "^17.0.0",
+    "dotenv": "^17.0.1",
     "express": "^5.1.0",
+    "helmet": "^8.1.0",
     "mailersend": "^2.6.0",
-    "nodemailer": "^7.0.4"
+    "nodemailer": "^7.0.5"
   }
 }
