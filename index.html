@@ -289,6 +289,62 @@
         </div>
       </div>
 
+      <!-- Item Price Management -->
+      <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+        <h2 class="text-2xl font-semibold mb-4" id="itemPriceFormTitle">
+          Manage Item Prices
+        </h2>
+        <div class="grid grid-cols-1 gap-4">
+          <input id="itemPriceId" type="hidden" />
+          <input
+            id="itemPriceDescription"
+            type="text"
+            placeholder="Item Description (e.g., Concrete)"
+            class="border p-2 rounded w-full"
+          />
+          <select id="itemPricePricingType" class="border p-2 rounded w-full">
+            <option value="Fixed">Fixed Cost</option>
+            <option value="Hourly">Hourly Rate</option>
+            <option value="Material">Material</option>
+          </select>
+          <input
+            id="itemPriceBaseCost"
+            type="number"
+            placeholder="Base Cost (per unit or hour)"
+            class="border p-2 rounded w-full"
+          />
+          <input
+            id="itemPriceCustomer"
+            type="text"
+            placeholder="Customer Name (leave blank for default)"
+            class="border p-2 rounded w-full"
+          />
+          <button
+            onclick="saveItemPrice()"
+            class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 w-full"
+          >
+            Save Item Price
+          </button>
+        </div>
+        <div class="mt-4">
+          <h3 class="text-xl font-semibold mb-2">Item Price List</h3>
+          <div class="table-responsive">
+            <table class="w-full border-collapse">
+              <thead>
+                <tr class="bg-gray-200">
+                  <th class="border p-2">Description</th>
+                  <th class="border p-2">Pricing Type</th>
+                  <th class="border p-2">Base Cost</th>
+                  <th class="border p-2">Customer</th>
+                  <th class="border p-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="itemPriceTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- Project Form -->
       <div class="bg-white p-4 rounded-lg shadow-md mb-6">
         <h2 class="text-2xl font-semibold mb-4" id="projectFormTitle">
@@ -335,15 +391,20 @@
         </h2>
         <div class="grid grid-cols-1 gap-4">
           <input id="itemId" type="hidden" />
-          <select id="itemProject" class="border p-2 rounded w-full">
+          <select
+            id="itemProject"
+            class="border p-2 rounded w-full"
+            onchange="updateItemDescriptionSelect()"
+          >
             <option value="">Select Project</option>
           </select>
-          <input
+          <select
             id="itemDescription"
-            type="text"
-            placeholder="Item Description (e.g., Concrete, Labor)"
             class="border p-2 rounded w-full"
-          />
+            onchange="updateItemCost()"
+          >
+            <option value="">Select Item Description</option>
+          </select>
           <select id="itemPricingType" class="border p-2 rounded w-full">
             <option value="Fixed">Fixed Cost</option>
             <option value="Hourly">Hourly Rate</option>
@@ -456,7 +517,97 @@
     <script>
       let projects = JSON.parse(localStorage.getItem("projects")) || [];
       let invoices = JSON.parse(localStorage.getItem("invoices")) || [];
+      let itemPrices = JSON.parse(localStorage.getItem("itemPrices")) || [];
       const { jsPDF } = window.jspdf;
+
+      function saveItemPrice() {
+        const itemPriceId = document.getElementById("itemPriceId").value;
+        const description = document.getElementById(
+          "itemPriceDescription"
+        ).value;
+        const pricingType = document.getElementById(
+          "itemPricePricingType"
+        ).value;
+        const baseCost = parseFloat(
+          document.getElementById("itemPriceBaseCost").value
+        );
+        const customer =
+          document.getElementById("itemPriceCustomer").value || "Default";
+
+        if (description && baseCost >= 0) {
+          if (itemPriceId) {
+            const itemPrice = itemPrices.find(
+              (ip) => ip.id === parseInt(itemPriceId)
+            );
+            itemPrice.description = description;
+            itemPrice.pricingType = pricingType;
+            itemPrice.baseCost = baseCost;
+            itemPrice.customer = customer;
+          } else {
+            itemPrices.push({
+              id: Date.now(),
+              description,
+              pricingType,
+              baseCost,
+              customer,
+            });
+          }
+          localStorage.setItem("itemPrices", JSON.stringify(itemPrices));
+          updateItemPriceTable();
+          clearItemPriceForm();
+          updateItemDescriptionSelect();
+        } else {
+          alert(
+            "Please fill in all required fields (Description and Base Cost)"
+          );
+        }
+      }
+
+      function editItemPrice(id) {
+        const itemPrice = itemPrices.find((ip) => ip.id === id);
+        document.getElementById("itemPriceId").value = itemPrice.id;
+        document.getElementById("itemPriceDescription").value =
+          itemPrice.description;
+        document.getElementById("itemPricePricingType").value =
+          itemPrice.pricingType;
+        document.getElementById("itemPriceBaseCost").value = itemPrice.baseCost;
+        document.getElementById("itemPriceCustomer").value =
+          itemPrice.customer === "Default" ? "" : itemPrice.customer;
+        document.getElementById("itemPriceFormTitle").textContent =
+          "Edit Item Price";
+      }
+
+      function deleteItemPrice(id) {
+        if (confirm("Are you sure you want to delete this item price?")) {
+          itemPrices = itemPrices.filter((ip) => ip.id !== id);
+          localStorage.setItem("itemPrices", JSON.stringify(itemPrices));
+          updateItemPriceTable();
+          updateItemDescriptionSelect();
+        }
+      }
+
+      function updateItemPriceTable() {
+        const tableBody = document.getElementById("itemPriceTableBody");
+        tableBody.innerHTML = "";
+        itemPrices.forEach((itemPrice) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td class="border p-2">${itemPrice.description}</td>
+            <td class="border p-2">${itemPrice.pricingType}</td>
+            <td class="border p-2">$${itemPrice.baseCost.toFixed(2)}</td>
+            <td class="border p-2">${itemPrice.customer}</td>
+            <td class="border p-2 flex flex-col gap-2">
+              <button onclick="editItemPrice(${
+                itemPrice.id
+              })" class="bg-yellow-500 text-white py-1 px-2 rounded hover:bg-yellow-600 w-full">Edit</button>
+              <button onclick="deleteItemPrice(${
+                itemPrice.id
+              })" class="bg-red-500 text-white py-1 px-2 rounded hover:bg-red-600 w-full">Delete</button>
+            </td>
+          `;
+          tableBody.appendChild(row);
+        });
+      }
 
       function saveProject() {
         const projectId = document.getElementById("projectId").value;
@@ -505,6 +656,56 @@
           "Edit Project";
       }
 
+      function updateItemDescriptionSelect() {
+        const projectId = document.getElementById("itemProject").value;
+        const itemDescriptionSelect =
+          document.getElementById("itemDescription");
+        itemDescriptionSelect.innerHTML =
+          '<option value="">Select Item Description</option>';
+        if (projectId) {
+          const project = projects.find((p) => p.id === parseInt(projectId));
+          const clientName = project.client;
+          const relevantPrices = itemPrices.filter(
+            (ip) => ip.customer === "Default" || ip.customer === clientName
+          );
+          relevantPrices.forEach((itemPrice) => {
+            const option = document.createElement("option");
+            option.value = itemPrice.description;
+            option.textContent = `${itemPrice.description} (${
+              itemPrice.pricingType
+            }, $${itemPrice.baseCost.toFixed(2)} for ${itemPrice.customer})`;
+            itemDescriptionSelect.appendChild(option);
+          });
+        }
+        updateItemCost();
+      }
+
+      function updateItemCost() {
+        const projectId = document.getElementById("itemProject").value;
+        const description = document.getElementById("itemDescription").value;
+        const itemCostInput = document.getElementById("itemCost");
+        const pricingTypeSelect = document.getElementById("itemPricingType");
+        if (projectId && description) {
+          const project = projects.find((p) => p.id === parseInt(projectId));
+          const clientName = project.client;
+          const itemPrice = itemPrices.find(
+            (ip) =>
+              ip.description === description &&
+              (ip.customer === clientName || ip.customer === "Default")
+          );
+          if (itemPrice) {
+            itemCostInput.value = itemPrice.baseCost;
+            pricingTypeSelect.value = itemPrice.pricingType;
+          } else {
+            itemCostInput.value = "";
+            pricingTypeSelect.value = "Fixed";
+          }
+        } else {
+          itemCostInput.value = "";
+          pricingTypeSelect.value = "Fixed";
+        }
+      }
+
       function saveProjectItem() {
         const itemId = document.getElementById("itemId").value;
         const projectId = document.getElementById("itemProject").value;
@@ -515,7 +716,7 @@
           document.getElementById("itemQuantity").value
         );
 
-        if (projectId && description && cost && quantity > 0) {
+        if (projectId && description && cost >= 0 && quantity > 0) {
           const project = projects.find((p) => p.id === parseInt(projectId));
           if (itemId) {
             const item = project.items.find((i) => i.id === parseInt(itemId));
@@ -553,6 +754,7 @@
         document.getElementById("itemCost").value = item.cost;
         document.getElementById("itemQuantity").value = item.quantity;
         document.getElementById("itemFormTitle").textContent = "Edit Item";
+        updateItemDescriptionSelect();
       }
 
       function deleteProjectItem(projectId, itemId) {
@@ -578,51 +780,51 @@
           );
           const row = document.createElement("tr");
           row.innerHTML = `
-          <td class="border p-2">${project.name}</td>
-          <td class="border p-2">${project.client}</td>
-          <td class="border p-2">${project.manager || "Unassigned"}</td>
-          <td class="border p-2">$${totalCost.toFixed(2)}</td>
-          <td class="border p-2">${project.status}</td>
-          <td class="border p-2">
-            ${project.items
-              .map(
-                (item) => `
-              <div class="flex items-center justify-between">
-                <span class="text-base">${item.description} (${
-                  item.pricingType
-                }): $${item.cost.toFixed(2)} x ${
-                  item.quantity
-                } = $${item.total.toFixed(2)}</span>
-                <div>
-                  <button onclick="editProjectItem(${project.id}, ${
-                  item.id
-                })" class="bg-yellow-500 text-white p-1 rounded hover:bg-yellow-600 ml-2 min-w-[2rem]">Edit</button>
-                  <button onclick="deleteProjectItem(${project.id}, ${
-                  item.id
-                })" class="bg-red-500 text-white p-1 rounded hover:bg-red-600 ml-2 min-w-[2rem]">Delete</button>
+            <td class="border p-2">${project.name}</td>
+            <td class="border p-2">${project.client}</td>
+            <td class="border p-2">${project.manager || "Unassigned"}</td>
+            <td class="border p-2">$${totalCost.toFixed(2)}</td>
+            <td class="border p-2">${project.status}</td>
+            <td class="border p-2">
+              ${project.items
+                .map(
+                  (item) => `
+                <div class="flex items-center justify-between">
+                  <span class="text-base">${item.description} (${
+                    item.pricingType
+                  }): $${item.cost.toFixed(2)} x ${
+                    item.quantity
+                  } = $${item.total.toFixed(2)}</span>
+                  <div>
+                    <button onclick="editProjectItem(${project.id}, ${
+                    item.id
+                  })" class="bg-yellow-500 text-white p-1 rounded hover:bg-yellow-600 ml-2 min-w-[2rem]">Edit</button>
+                    <button onclick="deleteProjectItem(${project.id}, ${
+                    item.id
+                  })" class="bg-red-500 text-white p-1 rounded hover:bg-red-600 ml-2 min-w-[2rem]">Delete</button>
+                  </div>
                 </div>
-              </div>
-            `
-              )
-              .join("")}
-          </td>
-          <td class="border p-2 flex flex-col gap-2">
-            <button onclick="editProject(${
-              project.id
-            })" class="bg-yellow-500 text-white py-1 px-2 rounded hover:bg-yellow-600 w-full">Edit</button>
-            <button onclick="deleteProject(${
-              project.id
-            })" class="bg-red-500 text-white py-1 px-2 rounded hover:bg-red-600 w-full">Delete</button>
-            ${projectInvoices
-              .map(
-                (invoice) => `
-              <button onclick="downloadInvoice(${invoice.id})" class="bg-blue-500 text-white py-1 px-2 rounded hover:bg-blue-600 w-full">Download PDF #${invoice.id}</button>
-              <button onclick="promptSendInvoice(${invoice.id})" class="bg-green-500 text-white py-1 px-2 rounded hover:bg-green-600 w-full">Send Invoice #${invoice.id}</button>
-            `
-              )
-              .join("")}
-          </td>
-        `;
+              `
+                )
+                .join("")}
+            </td>
+            <td class="border p-2 flex flex-col gap-2">
+              <button onclick="editProject(${
+                project.id
+              })" class="bg-yellow-500 text-white py-1 px-2 rounded hover:bg-yellow-600 w-full">Edit</button>
+              <button onclick="deleteProject(${
+                project.id
+              })" class="bg-red-500 text-white py-1 px-2 rounded hover:bg-red-600 w-full">Delete</button>
+              ${projectInvoices
+                .map(
+                  (invoice) => `
+                <button onclick="downloadInvoice(${invoice.id})" class="bg-blue-500 text-white py-1 px-2 rounded hover:bg-blue-600 w-full">Download PDF #${invoice.id}</button>
+                <button onclick="promptSendInvoice(${invoice.id})" class="bg-green-500 text-white py-1 px-2 rounded hover:bg-green-600 w-full">Send Invoice #${invoice.id}</button>
+              `
+                )
+                .join("")}
+            </td>
+          `;
           tableBody.appendChild(row);
         });
         updateDashboard();
@@ -659,6 +861,7 @@
           itemSelect.appendChild(option1);
           invoiceSelect.appendChild(option2);
         });
+        updateItemDescriptionSelect();
         updateInvoiceItemSelect();
       }
 
@@ -671,15 +874,15 @@
           project.items.forEach((item) => {
             const div = document.createElement("div");
             div.innerHTML = `
-            <label class="flex items-center">
-              <input type="checkbox" value="${
-                item.id
-              }" class="invoice-item-checkbox mr-2">
-              ${item.description} (${item.pricingType}): $${item.cost.toFixed(
+              <label class="flex items-center">
+                <input type="checkbox" value="${
+                  item.id
+                }" class="invoice-item-checkbox mr-2">
+                ${item.description} (${item.pricingType}): $${item.cost.toFixed(
               2
             )} x ${item.quantity} = $${item.total.toFixed(2)}
-            </label>
-          `;
+              </label>
+            `;
             invoiceItemsDiv.appendChild(div);
           });
         }
@@ -768,50 +971,50 @@
         const invoiceOutput = document.getElementById("invoiceOutput");
         const project = projects.find((p) => p.id === invoice.projectId);
         invoiceOutput.innerHTML = `
-        <div class="border p-4 rounded bg-gray-50">
-          <h3 class="text-xl font-bold mb-2">Invoice #${invoice.id}</h3>
-          <p><strong>Project:</strong> ${project.name}</p>
-          <p><strong>Client:</strong> ${project.client}</p>
-          <p><strong>Project Manager:</strong> ${
-            project.manager || "Unassigned"
-          }</p>
-          <p><strong>Date:</strong> ${invoice.date}</p>
-          <h4 class="font-semibold mt-2">Items:</h4>
-          <ul class="list-disc pl-5">
-            ${invoice.items
-              .map(
-                (item) => `
-              <li>${item.description} (${
-                  item.pricingType
-                }): $${item.cost.toFixed(2)} x ${
-                  item.quantity
-                } = $${item.total.toFixed(2)}</li>
-            `
-              )
-              .join("")}
-          </ul>
-          <p class="mt-2"><strong>Subtotal:</strong> $${invoice.subtotal.toFixed(
-            2
-          )}</p>
-          <p><strong>Tax (${
-            invoice.taxRate
-          }%):</strong> $${invoice.taxAmount.toFixed(2)}</p>
-          <p><strong>Discount (${
-            invoice.discount
-          }%):</strong> -$${invoice.discountAmount.toFixed(2)}</p>
-          <p class="font-bold"><strong>Total:</strong> $${invoice.totalAmount.toFixed(
-            2
-          )}</p>
-          <div class="flex flex-col gap-2 mt-4">
-            <button onclick="downloadInvoice(${
-              invoice.id
-            })" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600">Download PDF Invoice</button>
-            <button onclick="promptSendInvoice(${
-              invoice.id
-            })" class="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600">Send Invoice</button>
+          <div class="border p-4 rounded bg-gray-50">
+            <h3 class="text-xl font-bold mb-2">Invoice #${invoice.id}</h3>
+            <p><strong>Project:</strong> ${project.name}</p>
+            <p><strong>Client:</strong> ${project.client}</p>
+            <p><strong>Project Manager:</strong> ${
+              project.manager || "Unassigned"
+            }</p>
+            <p><strong>Date:</strong> ${invoice.date}</p>
+            <h4 class="font-semibold mt-2">Items:</h4>
+            <ul class="list-disc pl-5">
+              ${invoice.items
+                .map(
+                  (item) => `
+                <li>${item.description} (${
+                    item.pricingType
+                  }): $${item.cost.toFixed(2)} x ${
+                    item.quantity
+                  } = $${item.total.toFixed(2)}</li>
+              `
+                )
+                .join("")}
+            </ul>
+            <p class="mt-2"><strong>Subtotal:</strong> $${invoice.subtotal.toFixed(
+              2
+            )}</p>
+            <p><strong>Tax (${
+              invoice.taxRate
+            }%):</strong> $${invoice.taxAmount.toFixed(2)}</p>
+            <p><strong>Discount (${
+              invoice.discount
+            }%):</strong> -$${invoice.discountAmount.toFixed(2)}</p>
+            <p class="font-bold"><strong>Total:</strong> $${invoice.totalAmount.toFixed(
+              2
+            )}</p>
+            <div class="flex flex-col gap-2 mt-4">
+              <button onclick="downloadInvoice(${
+                invoice.id
+              })" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600">Download PDF Invoice</button>
+              <button onclick="promptSendInvoice(${
+                invoice.id
+              })" class="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600">Send Invoice</button>
+            </div>
           </div>
-        </div>
-      `;
+        `;
       }
 
       function updateInvoiceTable() {
@@ -821,29 +1024,29 @@
           const project = projects.find((p) => p.id === invoice.projectId);
           const row = document.createElement("tr");
           row.innerHTML = `
-          <td class="border p-2">${invoice.id}</td>
-          <td class="border p-2">${project ? project.name : "N/A"}</td>
-          <td class="border p-2">${project ? project.client : "N/A"}</td>
-          <td class="border p-2">${
-            project ? project.manager || "Unassigned" : "N/A"
-          }</td>
-          <td class="border p-2">$${invoice.totalAmount.toFixed(2)}</td>
-          <td class="border p-2">${invoice.date}</td>
-          <td class="border p-2 flex flex-col gap-2">
-            <button onclick="editInvoice(${
-              invoice.id
-            })" class="bg-yellow-500 text-white py-1 px-2 rounded hover:bg-yellow-600 w-full">Edit</button>
-            <button onclick="deleteInvoice(${
-              invoice.id
-            })" class="bg-red-500 text-white py-1 px-2 rounded hover:bg-red-600 w-full">Delete</button>
-            <button onclick="downloadInvoice(${
-              invoice.id
-            })" class="bg-blue-500 text-white py-1 px-2 rounded hover:bg-blue-600 w-full">Download PDF</button>
-            <button onclick="promptSendInvoice(${
-              invoice.id
-            })" class="bg-green-500 text-white py-1 px-2 rounded hover:bg-green-600 w-full">Send</button>
-          </td>
-        `;
+            <td class="border p-2">${invoice.id}</td>
+            <td class="border p-2">${project ? project.name : "N/A"}</td>
+            <td class="border p-2">${project ? project.client : "N/A"}</td>
+            <td class="border p-2">${
+              project ? project.manager || "Unassigned" : "N/A"
+            }</td>
+            <td class="border p-2">$${invoice.totalAmount.toFixed(2)}</td>
+            <td class="border p-2">${invoice.date}</td>
+            <td class="border p-2 flex flex-col gap-2">
+              <button onclick="editInvoice(${
+                invoice.id
+              })" class="bg-yellow-500 text-white py-1 px-2 rounded hover:bg-yellow-600 w-full">Edit</button>
+              <button onclick="deleteInvoice(${
+                invoice.id
+              })" class="bg-red-500 text-white py-1 px-2 rounded hover:bg-red-600 w-full">Delete</button>
+              <button onclick="downloadInvoice(${
+                invoice.id
+              })" class="bg-blue-500 text-white py-1 px-2 rounded hover:bg-blue-600 w-full">Download PDF</button>
+              <button onclick="promptSendInvoice(${
+                invoice.id
+              })" class="bg-green-500 text-white py-1 px-2 rounded hover:bg-green-600 w-full">Send</button>
+            </td>
+          `;
           tableBody.appendChild(row);
         });
         updateDashboard();
@@ -866,7 +1069,6 @@
         const margin = 10;
         let y = 20;
 
-        // Title
         doc.setFontSize(16);
         doc.text(`Construction Project Invoice #${invoice.id}`, margin, y);
         y += 10;
@@ -874,7 +1076,6 @@
         doc.line(margin, y, 200, y);
         y += 10;
 
-        // Project Details
         doc.setFontSize(12);
         doc.text(`Project: ${project.name}`, margin, y);
         y += 7;
@@ -889,12 +1090,10 @@
         doc.text(`Date: ${invoice.date}`, margin, y);
         y += 10;
 
-        // Items Header
         doc.setFontSize(14);
         doc.text("Items:", margin, y);
         y += 7;
 
-        // Items Table
         doc.setFontSize(10);
         invoice.items.forEach((item) => {
           const itemText = `${item.description} (${
@@ -908,7 +1107,6 @@
         });
         y += 5;
 
-        // Totals
         doc.setLineWidth(0.5);
         doc.line(margin, y, 200, y);
         y += 7;
@@ -933,7 +1131,6 @@
         doc.text(`Total: $${invoice.totalAmount.toFixed(2)}`, margin, y);
         y += 10;
 
-        // Footer
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
         doc.text("Thank you for your business!", margin, y);
@@ -976,9 +1173,7 @@
             "https://will-invoice.onrender.com/send-email",
             {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 invoiceId,
                 projectName: project.name,
@@ -1022,6 +1217,16 @@
           totalInvoicedAmount.toFixed(2);
       }
 
+      function clearItemPriceForm() {
+        document.getElementById("itemPriceId").value = "";
+        document.getElementById("itemPriceDescription").value = "";
+        document.getElementById("itemPricePricingType").value = "Fixed";
+        document.getElementById("itemPriceBaseCost").value = "";
+        document.getElementById("itemPriceCustomer").value = "";
+        document.getElementById("itemPriceFormTitle").textContent =
+          "Manage Item Prices";
+      }
+
       function clearProjectForm() {
         document.getElementById("projectId").value = "";
         document.getElementById("projectName").value = "";
@@ -1054,7 +1259,7 @@
         document.getElementById("invoiceOutput").innerHTML = "";
       }
 
-      // Initialize the tables and selects on page load
+      updateItemPriceTable();
       updateProjectTable();
       updateInvoiceTable();
       updateSelects();
